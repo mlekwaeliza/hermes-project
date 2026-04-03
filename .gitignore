@@ -8,3 +8,10 @@ server/.env
 temp/
 build/
 .DS_Store
+node_modules/
+*.sqlite*
+.env
+.env.*
+*.log
+cookies.txt
+dist/
