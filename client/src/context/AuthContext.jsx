@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get('/api/auth/me', { withCredentials: true });
+      const response = await api.get('/auth/me');
       setUser(response.data.user);
     } catch (error) {
       setUser(null);
@@ -25,14 +25,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
-    const response = await axios.post('/api/auth/login', { username, password }, { withCredentials: true });
+    const response = await api.post('/auth/login', { username, password });
     setUser(response.data.user);
     return response.data;
   };
 
   const logout = async () => {
-    await axios.post('/api/auth/logout', {}, { withCredentials: true });
-    setUser(null);
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout API failed, forcing client logout:', error);
+    } finally {
+      setUser(null);
+    }
+  };
+
+  const updateUser = (data) => {
+    setUser(prev => ({ ...prev, ...data }));
   };
 
   const value = {
@@ -40,6 +49,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     logout,
+    updateUser,
     isAuthenticated: !!user
   };
 

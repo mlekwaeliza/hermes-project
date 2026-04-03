@@ -4,12 +4,14 @@ A professional web application for managing church member attendance through sec
 
 ## Features
 
-- **Admin Dashboard**: Upload CSV, manage members, modify attendance, export reports
+- **Admin Dashboard**: Upload CSV, manage members (edit/delete), modify attendance, export reports
+- **Leader Management**: View all leaders, reset passwords (admin only)
 - **Leader Portal**: Login, view assigned members, mark attendance weekly (present/absent/excused)
 - **Pastor Dashboard**: Real-time analytics, attendance trends, leader performance metrics, at-risk member identification
 - **Responsive Design**: Works on desktop and mobile devices
-- **Role-based Authentication**: Secure login for Admin, Leaders, and Pastor
+- **Role-based Authentication**: Secure login with change password functionality for all users
 - **CSV Import**: Bulk upload member data with sections and leader assignments
+- **Security**: CSRF protection, SameSite cookies, rate limiting, Helmet security headers
 
 ## Quick Start
 
@@ -46,7 +48,7 @@ This runs:
 4. **Initial Login**:
    - Username: `admin`
    - Password: `admin123`
-   - **IMPORTANT**: Change the admin password after first login! (Currently password change not implemented - see TODO)
+   - **IMPORTANT**: Change the admin password after first login using the "Change Password" link in the navigation.
 
 ## CSV Format
 
@@ -71,19 +73,22 @@ MembershipID,FullName,Section,LeaderName,Phone,Email,Gender,AgeGroup
 - Capabilities:
   - Upload CSV with member data
   - View all members (with search)
-  - Edit/delete members
+  - **Edit member details** (name, phone, email, gender, age group)
+  - **Delete members** (with confirmation)
   - Modify any attendance record
   - Export attendance data as CSV
+  - **View and manage section leaders** (reset passwords)
   - View sections and leaders
 
 ### Section Leader
 - Access: `/leader`
 - Capabilities:
   - See all members assigned to their section
-  - Select date and mark attendance for each member
+  - Select date and mark attendance for each member (present/absent/excused)
   - Submit once per Sunday (locked after submission)
   - View personal submission history
-- Note: Leader accounts are created automatically during CSV upload
+  - Change own password
+- Note: Leader accounts are created automatically during CSV upload with a temporary password
 
 ### Pastor
 - Access: `/pastor`
@@ -94,6 +99,7 @@ MembershipID,FullName,Section,LeaderName,Phone,Email,Gender,AgeGroup
   - At-risk members (3+ absences in 30 days)
   - Filter by date range
   - Export reports
+  - Change own password
 
 ## Database Schema
 
@@ -112,6 +118,7 @@ Using SQLite with the following tables:
 - `POST /api/auth/login` - Login
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/me` - Check session
+- `POST /api/auth/change-password` - Change own password (requires current password)
 
 ### Admin (`/api/admin/*`)
 - `GET /sections` - List sections
@@ -123,7 +130,8 @@ Using SQLite with the following tables:
 - `GET /attendance` - List attendance (filters: date, section_id, leader_id)
 - `PUT /attendance/:id` - Update attendance (admin override)
 - `GET /export` - Export CSV
-- `GET /leaders` - List leaders
+- `GET /leaders` - List all section leaders
+- `POST /leaders/:id/reset-password` - Reset a leader's password (generates temporary password)
 
 ### Leader (`/api/leader/*`)
 - `GET /members` - Get assigned members
@@ -184,13 +192,27 @@ NODE_ENV=production npm start
 
 ## Security Considerations
 
-- Default admin credentials should be changed immediately
-- Use strong `SESSION_SECRET` in production
-- Enable HTTPS in production (set `cookie.secure: true`)
-- Database file should be backed up regularly
-- Implement password reset functionality (TODO)
-- Add CSRF protection (TODO)
-- Implement rate limiting on auth endpoints (partial: rate limit on all API)
+- **Default admin credentials**: Change immediately after first login. All users can change their own password.
+- **Session secret**: Use a strong random value for `SESSION_SECRET` in production.
+- **HTTPS**: Enable in production (set `cookie.secure: true`).
+- **Database**: Back up regularly.
+- **CSRF Protection**: Implemented using double-submit cookie pattern; verified on all state-changing requests.
+- **Rate Limiting**: Enabled on all API endpoints (100 requests per 15 minutes per IP).
+- **Security Headers**: Helmet middleware sets various HTTP headers for security.
+- **Cookie Security**: Cookies are `httpOnly`, `sameSite=lax`, and `secure` in production.
+
+## Future Enhancements (TODO)
+
+- Password reset via email (currently admin can reset leader passwords manually)
+- Mobile app (React Native)
+- Bulk member editing
+- Advanced reporting (PDF generation)
+- Attendance prediction insights
+- SMS integration for follow-ups
+- Multi-language support
+- Recurring service times management
+- Two-factor authentication
+- Audit logging
 
 ## Future Enhancements (TODO)
 

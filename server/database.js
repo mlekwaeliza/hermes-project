@@ -32,6 +32,7 @@ db.serialize(() => {
       section_id INTEGER NOT NULL,
       phone TEXT,
       email TEXT,
+      is_head BOOLEAN DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
@@ -83,6 +84,14 @@ db.serialize(() => {
     CREATE INDEX IF NOT EXISTS idx_attendance_member_date ON attendance(member_id, date);
     CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status);
   `);
+
+  // Migration: Add profile_picture to users if it doesn't exist
+  db.run(`ALTER TABLE users ADD COLUMN profile_picture TEXT`, (err) => {
+    // If column already exists, sqlite throws an error which we can safely ignore
+    if (err && !err.message.includes('duplicate column name')) {
+      console.log('Migration note:', err.message);
+    }
+  });
 });
 
 // Helper function to promisify database operations
@@ -117,10 +126,12 @@ function all(sql, params = []) {
 const queries = {
   // Auth queries
   findUserByUsername: (username) => get('SELECT * FROM users WHERE username = ?', [username]),
-  createUser: (username, password_hash, role, full_name) =>
-    run('INSERT INTO users (username, password_hash, role, full_name) VALUES (?, ?, ?, ?)', [username, password_hash, role, full_name]),
+  createUser: (username, password_hash, role, full_name, profile_picture = null) =>
+    run('INSERT INTO users (username, password_hash, role, full_name, profile_picture) VALUES (?, ?, ?, ?, ?)', [username, password_hash, role, full_name, profile_picture]),
   updateUserPassword: (password_hash, userId) =>
     run('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [password_hash, userId]),
+  updateUserFullName: (full_name, userId) =>
+    run('UPDATE users SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [full_name, userId]),
 
   // Section queries
   getAllSections: () => all('SELECT * FROM sections ORDER BY name'),
@@ -143,6 +154,10 @@ const queries = {
   `, [sectionId]),
   createLeader: (userId, sectionId, phone, email) =>
     run('INSERT INTO leaders (user_id, section_id, phone, email) VALUES (?, ?, ?, ?)', [userId, sectionId, phone, email]),
+  updateLeaderInfo: (leaderId, sectionId, phone, email) =>
+    run('UPDATE leaders SET section_id = ?, phone = ?, email = ? WHERE id = ?', [sectionId, phone, email, leaderId]),
+  deleteUserAndCascade: (userId) =>
+    run('DELETE FROM users WHERE id = ?', [userId]),
 
   // Member queries
   getMembersByLeader: (leaderId) => all(`
@@ -220,6 +235,19 @@ const queries = {
     ORDER BY date DESC
     LIMIT 30
   `),
+  getLeaderSectionAttendanceStats: (leaderId, startDate, endDate) => all(`
+    SELECT
+      a.date,
+      COUNT(*) as total_members,
+      SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
+      SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
+      SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count
+    FROM attendance a
+    JOIN members m ON a.member_id = m.id
+    WHERE m.leader_id = ? AND a.date BETWEEN ? AND ?
+    GROUP BY a.date
+    ORDER BY a.date ASC
+  `, [leaderId, startDate, endDate]),
   getSectionAttendanceStats: (startDate, endDate) => all(`
     SELECT
       s.name as section_name,
@@ -280,7 +308,11 @@ const queries = {
     WHERE sl.date BETWEEN ? AND ?
     GROUP BY l.id
     ORDER BY s.name, u.full_name
-  `, [startDate, endDate])
+  `, [startDate, endDate]),
+  
+  // Profile Picture Queries
+  updateUserProfilePicture: (profilePicturePath, userId) =>
+    run('UPDATE users SET profile_picture = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [profilePicturePath, userId]),
 };
 
 // Transaction helper

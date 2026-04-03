@@ -31,7 +31,9 @@
       "Bash(npm config:*)",
       "Bash(cd /c/Users/mlekw/Desktop/Demo project)",
       "Bash(ls:*)",
-      "Bash(npm ci:*)"
+      "Bash(npm ci:*)",
+      "Bash(xargs -r kill)",
+      "Bash(xargs -r taskkill //F //PID)"
     ]
   }
 }

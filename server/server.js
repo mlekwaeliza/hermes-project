@@ -3,8 +3,17 @@ const session = require('express-session');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+const { csrfProtect } = require('./middleware/csrf');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads', 'profiles');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 const { queries } = require('./database');
 const authRoutes = require('./routes/auth');
@@ -33,6 +42,9 @@ app.use('/api/', limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Cookie parser (needed for CSRF token validation)
+app.use(cookieParser());
+
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'church-attendance-secret-key-change-in-production',
@@ -41,15 +53,22 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// CSRF Protection (for authenticated state-changing requests)
+app.use('/api/', csrfProtect());
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/leader', leaderRoutes);
 app.use('/api/pastor', pastorRoutes);
+
+// Static uploads serving
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/api/health', (req, res) => {
